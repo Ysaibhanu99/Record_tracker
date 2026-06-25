@@ -128,7 +128,9 @@
 
                 <div class="filter-bar">
                     <div class="input-group inline" style="flex: 1;">
-                        <input type="text" id="markClassFilter" placeholder="Filter by class...">
+                        <select id="markClassFilter" style="flex: 1; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); color: var(--text-main); font-family: 'Outfit', sans-serif;">
+                            <option value="">Select a Class...</option>
+                        </select>
                         <button class="btn primary-btn" id="markFilterBtn">Load Students</button>
                     </div>
                     <div class="bulk-actions" id="bulkActionsContainer" style="display: none; margin-left: 10px;">
@@ -166,6 +168,9 @@
                 </header>
 
                 <div class="search-bar" style="display: flex; gap: 10px;">
+                    <select id="viewClassFilter" style="width: 200px; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.05); color: var(--text-main); font-family: 'Outfit', sans-serif;">
+                        <option value="">All Classes</option>
+                    </select>
                     <input type="text" id="searchInput" placeholder="Search by name, admission no, or roll no..." style="flex: 1;">
                     <button class="btn primary-btn" id="exportBtn">Export to CSV</button>
                 </div>

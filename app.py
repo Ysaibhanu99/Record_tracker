@@ -237,5 +237,12 @@ def get_analytics():
         'classes': classes
     })
 
+@app.route('/api/classes', methods=['GET'])
+def get_classes():
+    db = next(get_db())
+    classes = db.query(Student.class_name).distinct().all()
+    # Handle both string values and empty strings safely
+    return jsonify([c[0] for c in classes if c[0]])
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -84,6 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showStatus(uploadStatus, data.message, 'success');
                 uploadForm.reset();
                 dropZone.querySelector('p').innerHTML = 'Drag & Drop your file here or <span class="browse">browse</span>';
+                loadDashboard();
+                loadClasses();
             } else {
                 showStatus(uploadStatus, data.error || 'Upload failed.', 'error');
             }
@@ -117,6 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 showStatus(manualStatus, 'Student added successfully!', 'success');
                 manualAddForm.reset();
+                loadDashboard();
+                loadClasses();
             } else {
                 showStatus(manualStatus, data.error || 'Failed to add student.', 'error');
             }
@@ -287,13 +291,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- View Records Logic ----
     const searchInput = document.getElementById('searchInput');
+    const viewClassFilter = document.getElementById('viewClassFilter');
     const viewTableBody = document.querySelector('#viewTable tbody');
 
     const loadViewStudents = async () => {
         const query = searchInput.value.trim();
+        const classFilter = viewClassFilter.value.trim();
         let url = '/api/students';
-        if (query) {
-            url += `?search=${encodeURIComponent(query)}`;
+        const params = new URLSearchParams();
+        if (query) params.append('search', query);
+        if (classFilter) params.append('class_name', classFilter);
+        
+        if (params.toString()) {
+            url += `?${params.toString()}`;
         }
 
         try {
@@ -352,11 +362,18 @@ document.addEventListener('DOMContentLoaded', () => {
         timeoutId = setTimeout(loadViewStudents, 300);
     });
 
+    viewClassFilter.addEventListener('change', loadViewStudents);
+
     document.getElementById('exportBtn').addEventListener('click', () => {
         const query = searchInput.value.trim();
+        const classFilter = viewClassFilter.value.trim();
+        const params = new URLSearchParams();
+        if (query) params.append('search', query);
+        if (classFilter) params.append('class_name', classFilter);
+        
         let url = '/api/export';
-        if (query) {
-            url += `?search=${encodeURIComponent(query)}`;
+        if (params.toString()) {
+            url += `?${params.toString()}`;
         }
         window.location.href = url;
     });
@@ -421,4 +438,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
         setTheme(true);
     }
+
+    // Load Unique Classes for Dropdowns
+    async function loadClasses() {
+        try {
+            const res = await fetch('/api/classes');
+            const classes = await res.json();
+            
+            const markSelect = document.getElementById('markClassFilter');
+            const viewSelect = document.getElementById('viewClassFilter');
+            
+            const currentMark = markSelect.value;
+            const currentView = viewSelect.value;
+            
+            markSelect.innerHTML = '<option value="">Select a Class...</option>';
+            viewSelect.innerHTML = '<option value="">All Classes</option>';
+            
+            classes.forEach(c => {
+                markSelect.innerHTML += `<option value="${c}">${c}</option>`;
+                viewSelect.innerHTML += `<option value="${c}">${c}</option>`;
+            });
+            
+            markSelect.value = currentMark;
+            viewSelect.value = currentView;
+        } catch (e) {
+            console.error("Failed to load classes", e);
+        }
+    }
+    
+    loadClasses();
 });
