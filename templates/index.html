@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Tracker</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>Tracker<span>.</span></h2>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-target="add-section">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                    Add Students
+                </li>
+                <li data-target="mark-section">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    Mark Records
+                </li>
+                <li data-target="view-section">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    View Records
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            
+            <!-- Add Section -->
+            <section id="add-section" class="active-section">
+                <header>
+                    <h1>Add Students</h1>
+                    <p>Upload a file or add a student manually.</p>
+                </header>
+                
+                <div class="cards-container">
+                    <!-- Upload File Card -->
+                    <div class="card upload-card">
+                        <h3>Bulk Upload (.xlsx, .csv)</h3>
+                        <form id="uploadForm">
+                            <div class="input-group">
+                                <label for="uploadClass">Class Name</label>
+                                <input type="text" id="uploadClass" name="class_name" placeholder="e.g. BCA 1st Year" required>
+                            </div>
+                            <div class="drop-zone" id="dropZone">
+                                <span class="drop-icon">📁</span>
+                                <p>Drag & Drop your file here or <span class="browse">browse</span></p>
+                                <input type="file" id="fileInput" name="file" accept=".csv, .xlsx" hidden>
+                            </div>
+                            <button type="submit" class="btn primary-btn">Upload File</button>
+                        </form>
+                        <div id="uploadStatus"></div>
+                    </div>
+
+                    <!-- Manual Add Card -->
+                    <div class="card manual-card">
+                        <h3>Add Manually</h3>
+                        <form id="manualAddForm">
+                            <div class="input-group">
+                                <label>Roll No</label>
+                                <input type="text" id="manRoll" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Admission Number</label>
+                                <input type="text" id="manAdm" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Name</label>
+                                <input type="text" id="manName" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Class</label>
+                                <input type="text" id="manClass" required>
+                            </div>
+                            <button type="submit" class="btn secondary-btn">Add Student</button>
+                        </form>
+                        <div id="manualStatus"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mark Section -->
+            <section id="mark-section">
+                <header>
+                    <h1>Mark Records</h1>
+                    <p>Select a class and update record statuses.</p>
+                </header>
+
+                <div class="filter-bar">
+                    <div class="input-group inline">
+                        <input type="text" id="markClassFilter" placeholder="Filter by class...">
+                        <button class="btn primary-btn" id="markFilterBtn">Load Students</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="markTable">
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Adm. No</th>
+                                <th>Name</th>
+                                <th>Class</th>
+                                <th>Bought</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Loaded via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- View Section -->
+            <section id="view-section">
+                <header>
+                    <h1>View Records</h1>
+                    <p>Search for students to see their record status.</p>
+                </header>
+
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Search by name, admission no, or roll no...">
+                </div>
+
+                <div class="table-container">
+                    <table id="viewTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Adm. No</th>
+                                <th>Class</th>
+                                <th>Bought</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Loaded via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </main>
+    </div>
+    
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
