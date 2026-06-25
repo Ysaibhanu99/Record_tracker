@@ -138,6 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            markTableBody.innerHTML = '';
+            // Show skeletons
+            for(let i=0; i<3; i++) {
+                markTableBody.innerHTML += `
+                    <tr>
+                        <td colspan="8"><div class="skeleton" style="height: 20px; width: 100%;"></div></td>
+                    </tr>
+                `;
+            }
+
             const res = await fetch(url);
             const students = await res.json();
             
@@ -252,6 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const boughtData = labels.map(c => data.classes[c].bought);
             const submittedData = labels.map(c => data.classes[c].submitted);
             
+            Chart.defaults.color = document.body.getAttribute('data-theme') === 'dark' ? '#94a3b8' : '#64748b';
+            
             const ctx = document.getElementById('progressChart').getContext('2d');
             if (progressChartInstance) {
                 progressChartInstance.destroy();
@@ -285,6 +297,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            viewTableBody.innerHTML = '';
+            // Show skeletons
+            for(let i=0; i<3; i++) {
+                viewTableBody.innerHTML += `
+                    <tr>
+                        <td colspan="6"><div class="skeleton" style="height: 20px; width: 100%;"></div></td>
+                    </tr>
+                `;
+            }
+
             const res = await fetch(url);
             const students = await res.json();
             
@@ -341,8 +363,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper Function
     function showStatus(element, message, type) {
-        element.textContent = message;
-        element.className = `status-${type}`;
-        setTimeout(() => element.textContent = '', 5000);
+        showToast(message, type);
+    }
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        if (!container) return; // Fallback if container is missing
+        
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerText = message;
+        
+        container.appendChild(toast);
+        
+        // Trigger reflow to apply transition
+        toast.offsetHeight;
+        toast.classList.add('show');
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 400); // Wait for transition
+        }, 3000);
+    }
+
+    // Theme Toggle Logic
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = themeToggle.querySelector('.theme-icon');
+    const themeText = themeToggle.querySelector('.theme-text');
+    
+    const setTheme = (isDark) => {
+        if (isDark) {
+            document.body.setAttribute('data-theme', 'dark');
+            themeText.innerText = 'Light Mode';
+            themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.removeAttribute('data-theme');
+            themeText.innerText = 'Dark Mode';
+            themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+            localStorage.setItem('theme', 'light');
+        }
+        
+        // If viewing dashboard, reload chart to update colors
+        if (progressChartInstance) {
+            loadDashboard(); 
+        }
+    };
+
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        setTheme(!isDark);
+    });
+
+    // Initialize Theme
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        setTheme(true);
     }
 });
