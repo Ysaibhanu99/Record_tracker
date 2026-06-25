@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
@@ -26,7 +26,10 @@ class Student(Base):
     name = Column(String, index=True)
     class_name = Column(String, index=True)
     record_bought = Column(Boolean, default=False)
+    bought_at = Column(DateTime, nullable=True)
     record_submitted = Column(Boolean, default=False)
+    submitted_at = Column(DateTime, nullable=True)
+    remarks = Column(String, nullable=True)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

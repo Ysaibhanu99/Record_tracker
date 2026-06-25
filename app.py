@@ -1,7 +1,10 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, make_response
 import pandas as pd
 from db import init_db, get_db, Student
+from datetime import datetime
+import io
+import csv
 
 app = Flask(__name__)
 
@@ -37,7 +40,10 @@ def get_students():
             'name': s.name,
             'class_name': s.class_name,
             'record_bought': s.record_bought,
-            'record_submitted': s.record_submitted
+            'bought_at': s.bought_at.isoformat() if s.bought_at else None,
+            'record_submitted': s.record_submitted,
+            'submitted_at': s.submitted_at.isoformat() if s.submitted_at else None,
+            'remarks': s.remarks
         })
 
     return jsonify(result)
@@ -73,9 +79,21 @@ def update_student(student_id):
         return jsonify({'error': 'Student not found'}), 404
 
     if 'record_bought' in data:
+        if data['record_bought'] and not student.record_bought:
+            student.bought_at = datetime.utcnow()
+        elif not data['record_bought']:
+            student.bought_at = None
         student.record_bought = data['record_bought']
+
     if 'record_submitted' in data:
+        if data['record_submitted'] and not student.record_submitted:
+            student.submitted_at = datetime.utcnow()
+        elif not data['record_submitted']:
+            student.submitted_at = None
         student.record_submitted = data['record_submitted']
+
+    if 'remarks' in data:
+        student.remarks = data['remarks']
 
     db.commit()
     return jsonify({'message': 'Student updated successfully'})
@@ -128,6 +146,96 @@ def upload_file():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/students/bulk', methods=['POST'])
+def bulk_update_students():
+    data = request.json
+    student_ids = data.get('student_ids', [])
+    field = data.get('field')
+    value = data.get('value')
+    
+    if not student_ids or field not in ['record_bought', 'record_submitted']:
+        return jsonify({'error': 'Invalid request'}), 400
+        
+    db = next(get_db())
+    students = db.query(Student).filter(Student.id.in_(student_ids)).all()
+    
+    for student in students:
+        if field == 'record_bought':
+            if value and not student.record_bought:
+                student.bought_at = datetime.utcnow()
+            elif not value:
+                student.bought_at = None
+            student.record_bought = value
+        elif field == 'record_submitted':
+            if value and not student.record_submitted:
+                student.submitted_at = datetime.utcnow()
+            elif not value:
+                student.submitted_at = None
+            student.record_submitted = value
+
+    db.commit()
+    return jsonify({'message': f'Successfully updated {len(students)} students'})
+
+@app.route('/api/export', methods=['GET'])
+def export_students():
+    search = request.args.get('search', '').lower()
+    class_filter = request.args.get('class_name', '')
+
+    db = next(get_db())
+    query = db.query(Student)
+    if class_filter:
+        query = query.filter(Student.class_name == class_filter)
+    students = query.all()
+    if search:
+        students = [s for s in students if search in str(s.name).lower() or search in str(s.admission_number).lower() or search in str(s.roll_no).lower()]
+
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['Roll No', 'Admission Number', 'Name', 'Class', 'Record Bought', 'Bought At', 'Record Submitted', 'Submitted At', 'Remarks'])
+    
+    for s in students:
+        cw.writerow([
+            s.roll_no, 
+            s.admission_number, 
+            s.name, 
+            s.class_name, 
+            'Yes' if s.record_bought else 'No',
+            s.bought_at.strftime("%Y-%m-%d %H:%M") if s.bought_at else '',
+            'Yes' if s.record_submitted else 'No',
+            s.submitted_at.strftime("%Y-%m-%d %H:%M") if s.submitted_at else '',
+            s.remarks or ''
+        ])
+    
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=students_export.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route('/api/analytics', methods=['GET'])
+def get_analytics():
+    db = next(get_db())
+    students = db.query(Student).all()
+    
+    total = len(students)
+    bought = sum(1 for s in students if s.record_bought)
+    submitted = sum(1 for s in students if s.record_submitted)
+    
+    classes = {}
+    for s in students:
+        c = s.class_name
+        if c not in classes:
+            classes[c] = {'total': 0, 'bought': 0, 'submitted': 0}
+        classes[c]['total'] += 1
+        if s.record_bought: classes[c]['bought'] += 1
+        if s.record_submitted: classes[c]['submitted'] += 1
+        
+    return jsonify({
+        'total': total,
+        'bought': bought,
+        'submitted': submitted,
+        'classes': classes
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

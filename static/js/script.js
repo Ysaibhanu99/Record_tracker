@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // If switching to view section, auto-load students
             if (targetId === 'view-section') {
                 loadViewStudents();
+            } else if (targetId === 'dashboard-section') {
+                loadDashboard();
             }
         });
     });
@@ -149,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             students.forEach(student => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
+                    <td><input type="checkbox" class="bulk-select" value="${student.id}"></td>
                     <td>${student.roll_no || '-'}</td>
                     <td>${student.admission_number || '-'}</td>
                     <td>${student.name}</td>
@@ -163,13 +166,60 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${student.record_submitted ? 'checked' : ''} 
                             onchange="updateStatus(${student.id}, 'record_submitted', this.checked)">
                     </td>
+                    <td>
+                        <input type="text" class="remarks-input" value="${student.remarks || ''}"
+                            placeholder="Add note..."
+                            onblur="updateStatus(${student.id}, 'remarks', this.value)">
+                    </td>
                 `;
                 markTableBody.appendChild(tr);
             });
+            setupBulkSelect();
         } catch (err) {
             console.error(err);
         }
     });
+
+    // Setup bulk selection logic
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const bulkActionsContainer = document.getElementById('bulkActionsContainer');
+    
+    const setupBulkSelect = () => {
+        const checkboxes = document.querySelectorAll('.bulk-select');
+        selectAllCheckbox.checked = false;
+        bulkActionsContainer.style.display = 'none';
+
+        const checkState = () => {
+            const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            bulkActionsContainer.style.display = anyChecked ? 'flex' : 'none';
+            selectAllCheckbox.checked = allChecked && checkboxes.length > 0;
+        };
+
+        checkboxes.forEach(cb => cb.addEventListener('change', checkState));
+        
+        selectAllCheckbox.onchange = (e) => {
+            checkboxes.forEach(cb => cb.checked = e.target.checked);
+            checkState();
+        };
+    };
+
+    const performBulkAction = async (field, value) => {
+        const selectedIds = Array.from(document.querySelectorAll('.bulk-select:checked')).map(cb => parseInt(cb.value));
+        if (!selectedIds.length) return;
+        
+        try {
+            await fetch('/api/students/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_ids: selectedIds, field, value })
+            });
+            document.getElementById('markFilterBtn').click(); // Reload table
+        } catch(err) { console.error('Bulk update failed', err); }
+    };
+
+    document.getElementById('bulkBoughtBtn').addEventListener('click', () => performBulkAction('record_bought', true));
+    document.getElementById('bulkSubmittedBtn').addEventListener('click', () => performBulkAction('record_submitted', true));
 
     // Make updateStatus available globally
     window.updateStatus = async (id, field, value) => {
@@ -185,6 +235,42 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Failed to update status', err);
         }
+    };
+
+    // ---- Dashboard Logic ----
+    let progressChartInstance = null;
+    const loadDashboard = async () => {
+        try {
+            const res = await fetch('/api/analytics');
+            const data = await res.json();
+            
+            document.getElementById('statTotal').innerText = data.total;
+            document.getElementById('statBought').innerText = data.bought;
+            document.getElementById('statSubmitted').innerText = data.submitted;
+            
+            const labels = Object.keys(data.classes);
+            const boughtData = labels.map(c => data.classes[c].bought);
+            const submittedData = labels.map(c => data.classes[c].submitted);
+            
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            if (progressChartInstance) {
+                progressChartInstance.destroy();
+            }
+            progressChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Bought', data: boughtData, backgroundColor: '#4c6ef5' },
+                        { label: 'Submitted', data: submittedData, backgroundColor: '#40c057' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        } catch(err) { console.error('Failed to load analytics', err); }
     };
 
     // ---- View Records Logic ----
@@ -211,20 +297,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             students.forEach(student => {
                 const tr = document.createElement('tr');
+                const boughtDate = student.bought_at ? `<br><small style="color:var(--text-muted)">${new Date(student.bought_at).toLocaleDateString()}</small>` : '';
+                const submittedDate = student.submitted_at ? `<br><small style="color:var(--text-muted)">${new Date(student.submitted_at).toLocaleDateString()}</small>` : '';
+                
                 tr.innerHTML = `
                     <td>${student.name}</td>
                     <td>${student.admission_number || '-'}</td>
                     <td>${student.class_name}</td>
                     <td>
                         <span style="color: ${student.record_bought ? 'var(--success)' : 'var(--text-muted)'}">
-                            ${student.record_bought ? '✓ Bought' : 'Pending'}
+                            ${student.record_bought ? '✓ Bought' + boughtDate : 'Pending'}
                         </span>
                     </td>
                     <td>
                         <span style="color: ${student.record_submitted ? 'var(--success)' : 'var(--text-muted)'}">
-                            ${student.record_submitted ? '✓ Submitted' : 'Pending'}
+                            ${student.record_submitted ? '✓ Submitted' + submittedDate : 'Pending'}
                         </span>
                     </td>
+                    <td>${student.remarks || '-'}</td>
                 `;
                 viewTableBody.appendChild(tr);
             });
@@ -238,6 +328,15 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('input', () => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(loadViewStudents, 300);
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+        const query = searchInput.value.trim();
+        let url = '/api/export';
+        if (query) {
+            url += `?search=${encodeURIComponent(query)}`;
+        }
+        window.location.href = url;
     });
 
     // Helper Function
