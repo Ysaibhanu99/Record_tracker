@@ -134,16 +134,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const markClassFilter = document.getElementById('markClassFilter');
     const markTableBody = document.querySelector('#markTable tbody');
 
-    markFilterBtn.addEventListener('click', async () => {
+    let currentMarkPage = 1;
+
+    const loadMarkStudents = async (page = 1) => {
         const className = markClassFilter.value.trim();
-        let url = '/api/students';
+        let url = `/api/students?page=${page}&per_page=50`;
         if (className) {
-            url += `?class_name=${encodeURIComponent(className)}`;
+            url += `&class_name=${encodeURIComponent(className)}`;
         }
 
         try {
             markTableBody.innerHTML = '';
-            // Show skeletons
             for(let i=0; i<3; i++) {
                 markTableBody.innerHTML += `
                     <tr>
@@ -153,14 +154,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const res = await fetch(url);
-            const students = await res.json();
+            const data = await res.json();
+            const students = data.students || data;
             
             markTableBody.innerHTML = '';
             
             if (students.length === 0) {
-                markTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No students found</td></tr>';
+                markTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No students found</td></tr>';
+                document.getElementById('markPagination').style.display = 'none';
                 return;
             }
+
+            document.getElementById('markPagination').style.display = 'flex';
+            document.getElementById('markPageInfo').innerText = `Page ${data.page} of ${data.total_pages}`;
+            document.getElementById('markPrevPage').disabled = data.page <= 1;
+            document.getElementById('markNextPage').disabled = data.page >= data.total_pages;
+            currentMarkPage = data.page;
 
             students.forEach(student => {
                 const tr = document.createElement('tr');
@@ -192,6 +201,50 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
         }
+    };
+
+    markFilterBtn.addEventListener('click', () => loadMarkStudents(1));
+    
+    // Auto-load when a class is selected from the dropdown
+    markClassFilter.addEventListener('change', () => {
+        if (markClassFilter.value) {
+            loadMarkStudents(1);
+        }
+    });
+
+    document.getElementById('markPrevPage').addEventListener('click', () => loadMarkStudents(currentMarkPage - 1));
+    document.getElementById('markNextPage').addEventListener('click', () => loadMarkStudents(currentMarkPage + 1));
+
+    const resetClassBtn = document.getElementById('resetClassBtn');
+    resetClassBtn.addEventListener('click', async () => {
+        const className = markClassFilter.value.trim();
+        if (!className) {
+            showToast('Please select a class to reset.', 'error');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to completely clear ALL tracking data (Bought, Submitted, Remarks) for every student in "${className}"? This cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/students/reset_class', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ class_name: className })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                showToast(data.message, 'success');
+                markFilterBtn.click(); // Automatically reload the table instantly
+            } else {
+                showToast(data.error || 'Failed to reset class data.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to connect to server.', 'error');
+        }
     });
 
     // Setup bulk selection logic
@@ -219,21 +272,40 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const performBulkAction = async (field, value) => {
-        const selectedIds = Array.from(document.querySelectorAll('.bulk-select:checked')).map(cb => parseInt(cb.value));
+        const selectedCheckboxes = document.querySelectorAll('.bulk-select:checked');
+        const selectedIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
         if (!selectedIds.length) return;
         
         try {
-            await fetch('/api/students/bulk', {
+            const res = await fetch('/api/students/bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ student_ids: selectedIds, field, value })
             });
-            document.getElementById('markFilterBtn').click(); // Reload table
+            
+            if (res.ok) {
+                // Optimistically update the UI instantly without reloading the table
+                selectedCheckboxes.forEach(cb => {
+                    const row = cb.closest('tr');
+                    const toggles = row.querySelectorAll('.status-toggle');
+                    
+                    if (field === 'record_bought') toggles[0].checked = value;
+                    if (field === 'record_submitted') toggles[1].checked = value;
+                });
+                
+                showToast("Records updated successfully", "success");
+                
+                // Deselect checkboxes and hide bulk menu
+                selectAllCheckbox.checked = false;
+                selectedCheckboxes.forEach(cb => cb.checked = false);
+                bulkActionsContainer.style.display = 'none';
+            }
         } catch(err) { console.error('Bulk update failed', err); }
     };
 
     document.getElementById('bulkBoughtBtn').addEventListener('click', () => performBulkAction('record_bought', true));
     document.getElementById('bulkSubmittedBtn').addEventListener('click', () => performBulkAction('record_submitted', true));
+    document.getElementById('bulkResetBtn').addEventListener('click', () => performBulkAction('reset', false));
 
     // Make updateStatus available globally
     window.updateStatus = async (id, field, value) => {
@@ -294,21 +366,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewClassFilter = document.getElementById('viewClassFilter');
     const viewTableBody = document.querySelector('#viewTable tbody');
 
-    const loadViewStudents = async () => {
+    let currentViewPage = 1;
+
+    const loadViewStudents = async (page = 1) => {
         const query = searchInput.value.trim();
         const classFilter = viewClassFilter.value.trim();
-        let url = '/api/students';
-        const params = new URLSearchParams();
+        const params = new URLSearchParams({ page, per_page: 50 });
         if (query) params.append('search', query);
         if (classFilter) params.append('class_name', classFilter);
         
-        if (params.toString()) {
-            url += `?${params.toString()}`;
-        }
+        const url = `/api/students?${params.toString()}`;
 
         try {
             viewTableBody.innerHTML = '';
-            // Show skeletons
             for(let i=0; i<3; i++) {
                 viewTableBody.innerHTML += `
                     <tr>
@@ -318,14 +388,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const res = await fetch(url);
-            const students = await res.json();
+            const data = await res.json();
+            const students = data.students || data;
             
             viewTableBody.innerHTML = '';
             
             if (students.length === 0) {
-                viewTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No students found</td></tr>';
+                viewTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No students found</td></tr>';
+                document.getElementById('viewPagination').style.display = 'none';
                 return;
             }
+
+            document.getElementById('viewPagination').style.display = 'flex';
+            document.getElementById('viewPageInfo').innerText = `Page ${data.page} of ${data.total_pages}`;
+            document.getElementById('viewPrevPage').disabled = data.page <= 1;
+            document.getElementById('viewNextPage').disabled = data.page >= data.total_pages;
+            currentViewPage = data.page;
 
             students.forEach(student => {
                 const tr = document.createElement('tr');
@@ -359,10 +437,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let timeoutId;
     searchInput.addEventListener('input', () => {
         clearTimeout(timeoutId);
-        timeoutId = setTimeout(loadViewStudents, 300);
+        timeoutId = setTimeout(() => loadViewStudents(1), 300);
     });
 
-    viewClassFilter.addEventListener('change', loadViewStudents);
+    viewClassFilter.addEventListener('change', () => loadViewStudents(1));
+    document.getElementById('viewPrevPage').addEventListener('click', () => loadViewStudents(currentViewPage - 1));
+    document.getElementById('viewNextPage').addEventListener('click', () => loadViewStudents(currentViewPage + 1));
 
     document.getElementById('exportBtn').addEventListener('click', () => {
         const query = searchInput.value.trim();

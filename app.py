@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, request, jsonify, make_response
 import pandas as pd
+from sqlalchemy import or_
 from db import init_db, get_db, Student
 from datetime import datetime
 import io
@@ -19,6 +20,8 @@ def index():
 def get_students():
     search = request.args.get('search', '').lower()
     class_filter = request.args.get('class_name', '')
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 50))
 
     db = next(get_db())
     query = db.query(Student)
@@ -26,10 +29,21 @@ def get_students():
     if class_filter:
         query = query.filter(Student.class_name == class_filter)
 
-    students = query.all()
-
     if search:
-        students = [s for s in students if search in str(s.name).lower() or search in str(s.admission_number).lower() or search in str(s.roll_no).lower()]
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Student.name.ilike(search_term),
+                Student.admission_number.ilike(search_term),
+                Student.roll_no.ilike(search_term)
+            )
+        )
+        
+    total_count = query.count()
+    
+    # Apply pagination
+    query = query.order_by(Student.id.desc()).limit(per_page).offset((page - 1) * per_page)
+    students = query.all()
 
     result = []
     for s in students:
@@ -46,7 +60,13 @@ def get_students():
             'remarks': s.remarks
         })
 
-    return jsonify(result)
+    return jsonify({
+        'students': result,
+        'total': total_count,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': max((total_count + per_page - 1) // per_page, 1)
+    })
 
 @app.route('/api/students', methods=['POST'])
 def add_student():
@@ -118,31 +138,38 @@ def upload_file():
             return jsonify({'error': 'Unsupported file type'}), 400
         
         db = next(get_db())
+        reader = csv.DictReader(codecs.iterdecode(file, 'utf-8'))
         added_count = 0
         
-        # Iterate over the rows
-        # Format expected: Index 1: Roll No, Index 2: Admission No, Index 3: Name
-        for index, row in df.iterrows():
-            if len(row) >= 4:
-                roll_no = str(row[1]) if not pd.isna(row[1]) else None
-                adm_no = str(row[2]) if not pd.isna(row[2]) else None
-                name = str(row[3]) if not pd.isna(row[3]) else None
-
-                if adm_no and name:
-                    # Check if already exists to avoid UniqueConstraint errors
-                    existing = db.query(Student).filter(Student.admission_number == adm_no).first()
-                    if not existing:
-                        student = Student(
-                            roll_no=roll_no,
-                            admission_number=adm_no,
-                            name=name,
-                            class_name=class_name
-                        )
-                        db.add(student)
-                        added_count += 1
+        rows = list(reader)
+        csv_adm_nos = [row.get('Admission Number', '').strip() for row in rows if row.get('Admission Number')]
         
-        db.commit()
-        return jsonify({'message': f'Successfully uploaded {added_count} students.'})
+        existing_students = db.query(Student.admission_number).filter(
+            Student.admission_number.in_(csv_adm_nos)
+        ).all()
+        existing_adm_nos = {s[0] for s in existing_students}
+        
+        new_students = []
+        for row in rows:
+            adm_no = row.get('Admission Number', '').strip()
+            roll_no = row.get('Roll No', '').strip()
+            name = row.get('Name', '').strip()
+            
+            if adm_no and name and adm_no not in existing_adm_nos:
+                new_students.append(Student(
+                    roll_no=roll_no,
+                    admission_number=adm_no,
+                    name=name,
+                    class_name=class_name
+                ))
+                existing_adm_nos.add(adm_no)
+                added_count += 1
+                
+        if new_students:
+            db.bulk_save_objects(new_students)
+            db.commit()
+            
+        return jsonify({'message': f'Successfully uploaded {added_count} new students.'})
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -154,28 +181,81 @@ def bulk_update_students():
     field = data.get('field')
     value = data.get('value')
     
-    if not student_ids or field not in ['record_bought', 'record_submitted']:
+    if not student_ids or field not in ['record_bought', 'record_submitted', 'reset']:
         return jsonify({'error': 'Invalid request'}), 400
         
     db = next(get_db())
-    students = db.query(Student).filter(Student.id.in_(student_ids)).all()
     
-    for student in students:
-        if field == 'record_bought':
-            if value and not student.record_bought:
-                student.bought_at = datetime.utcnow()
-            elif not value:
-                student.bought_at = None
-            student.record_bought = value
-        elif field == 'record_submitted':
-            if value and not student.record_submitted:
-                student.submitted_at = datetime.utcnow()
-            elif not value:
-                student.submitted_at = None
-            student.record_submitted = value
+    if field == 'record_bought':
+        if value:
+            db.query(Student).filter(
+                Student.id.in_(student_ids),
+                Student.record_bought == False
+            ).update({
+                "record_bought": True,
+                "bought_at": datetime.utcnow()
+            }, synchronize_session=False)
+        else:
+            db.query(Student).filter(
+                Student.id.in_(student_ids)
+            ).update({
+                "record_bought": False,
+                "bought_at": None
+            }, synchronize_session=False)
+            
+    elif field == 'record_submitted':
+        if value:
+            db.query(Student).filter(
+                Student.id.in_(student_ids),
+                Student.record_submitted == False
+            ).update({
+                "record_submitted": True,
+                "submitted_at": datetime.utcnow()
+            }, synchronize_session=False)
+        else:
+            db.query(Student).filter(
+                Student.id.in_(student_ids)
+            ).update({
+                "record_submitted": False,
+                "submitted_at": None
+            }, synchronize_session=False)
+            
+    elif field == 'reset':
+        db.query(Student).filter(
+            Student.id.in_(student_ids)
+        ).update({
+            "record_bought": False,
+            "bought_at": None,
+            "record_submitted": False,
+            "submitted_at": None,
+            "remarks": ''
+        }, synchronize_session=False)
 
     db.commit()
-    return jsonify({'message': f'Successfully updated {len(students)} students'})
+    return jsonify({'message': f'Successfully updated {len(student_ids)} students'})
+
+@app.route('/api/students/reset_class', methods=['POST'])
+def reset_class_students():
+    data = request.json
+    class_name = data.get('class_name')
+    
+    if not class_name:
+        return jsonify({'error': 'Class name is required'}), 400
+        
+    db = next(get_db())
+    
+    updated_count = db.query(Student).filter(
+        Student.class_name == class_name
+    ).update({
+        "record_bought": False,
+        "bought_at": None,
+        "record_submitted": False,
+        "submitted_at": None,
+        "remarks": ''
+    }, synchronize_session=False)
+        
+    db.commit()
+    return jsonify({'message': f'Successfully reset tracking data for {updated_count} students in {class_name}'})
 
 @app.route('/api/export', methods=['GET'])
 def export_students():
@@ -186,9 +266,19 @@ def export_students():
     query = db.query(Student)
     if class_filter:
         query = query.filter(Student.class_name == class_filter)
-    students = query.all()
+        
     if search:
-        students = [s for s in students if search in str(s.name).lower() or search in str(s.admission_number).lower() or search in str(s.roll_no).lower()]
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Student.name.ilike(search_term),
+                Student.admission_number.ilike(search_term),
+                Student.roll_no.ilike(search_term)
+            )
+        )
+        
+    query = query.order_by(Student.id.desc())
+    students = query.all()
 
     si = io.StringIO()
     cw = csv.writer(si)

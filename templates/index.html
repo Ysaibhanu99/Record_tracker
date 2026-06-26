@@ -132,10 +132,12 @@
                             <option value="">Select a Class...</option>
                         </select>
                         <button class="btn primary-btn" id="markFilterBtn">Load Students</button>
+                        <button class="btn secondary-btn" id="resetClassBtn" style="color: var(--accent); border-color: var(--accent);">Reset Class Data</button>
                     </div>
                     <div class="bulk-actions" id="bulkActionsContainer" style="display: none; margin-left: 10px;">
                         <button class="btn secondary-btn" id="bulkBoughtBtn">Selected: Bought</button>
                         <button class="btn secondary-btn" id="bulkSubmittedBtn">Selected: Submitted</button>
+                        <button class="btn secondary-btn" id="bulkResetBtn" style="color: var(--accent); border-color: var(--accent);">Selected: Reset</button>
                     </div>
                 </div>
 
@@ -157,6 +159,11 @@
                             <!-- Loaded via JS -->
                         </tbody>
                     </table>
+                </div>
+                <div class="pagination-controls" id="markPagination" style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px;">
+                    <button class="btn secondary-btn" id="markPrevPage" disabled>Previous</button>
+                    <span class="page-info" id="markPageInfo" style="font-weight: 500;">Page 1 of 1</span>
+                    <button class="btn secondary-btn" id="markNextPage" disabled>Next</button>
                 </div>
             </section>
 
@@ -191,6 +198,11 @@
                             <!-- Loaded via JS -->
                         </tbody>
                     </table>
+                </div>
+                <div class="pagination-controls" id="viewPagination" style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px;">
+                    <button class="btn secondary-btn" id="viewPrevPage" disabled>Previous</button>
+                    <span class="page-info" id="viewPageInfo" style="font-weight: 500;">Page 1 of 1</span>
+                    <button class="btn secondary-btn" id="viewNextPage" disabled>Next</button>
                 </div>
             </section>
 
