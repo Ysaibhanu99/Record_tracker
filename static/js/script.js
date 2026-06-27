@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- Navigation Logic ----
     const navLinks = document.querySelectorAll('.nav-links li');
     const sections = document.querySelectorAll('section');
+    const sidebar = document.querySelector('.sidebar');
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 
     navLinks.forEach(link => {
         link.addEventListener('click', () => {
@@ -14,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetId = link.getAttribute('data-target');
             document.getElementById(targetId).classList.add('active-section');
             
+            // Close sidebar on mobile after clicking a link
+            if (sidebar) sidebar.classList.remove('show');
+            
             // If switching to view section, auto-load students
             if (targetId === 'view-section') {
                 loadViewStudents();
@@ -21,6 +26,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadDashboard();
             }
         });
+    });
+
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sidebar.classList.toggle('show');
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 992 && sidebar && sidebar.classList.contains('show')) {
+            if (!sidebar.contains(e.target) && e.target !== mobileMenuBtn && !mobileMenuBtn.contains(e.target)) {
+                sidebar.classList.remove('show');
+            }
+        }
     });
 
     // ---- File Upload Logic ----

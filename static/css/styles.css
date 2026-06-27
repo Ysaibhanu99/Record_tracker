@@ -486,3 +486,78 @@ td {
     font-size: 0.9rem;
     color: var(--text-main);
 }
+
+/* Mobile Menu Button */
+.mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 0.5rem;
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 20;
+}
+
+/* Responsive Sidebar & Layout */
+@media (max-width: 992px) {
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        height: 100vh;
+        transition: left 0.3s ease;
+        z-index: 100;
+        width: 260px;
+    }
+    
+    .sidebar.show {
+        left: 0;
+    }
+    
+    .mobile-menu-btn {
+        display: block;
+    }
+    
+    .content {
+        padding-top: 4rem; /* Make room for the menu button */
+    }
+    
+    .cards-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .search-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-bar select, .search-bar input, .search-bar button {
+        width: 100% !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-bar .input-group.inline {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .bulk-actions {
+        margin-left: 0 !important;
+        margin-top: 10px;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+    }
+}
